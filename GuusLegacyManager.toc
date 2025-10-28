@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: GuusLegacyManager
+## Notes: Manage character legacy commands with easy character selection
+## Author: Guus
+## Version: 1.0
+## SavedVariables: GuusLegacyManager_Characters
+
+GuusLegacyManager.lua
