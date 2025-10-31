@@ -1,8 +1,11 @@
-## Interface: 11200
+## Interface: 11403
+## SavedVariables: GuusLegacyManager GuusLegacyManager_Config
 ## Title: GuusLegacyManager
-## Notes: Manage character legacy commands with easy character selection
+## Notes: Raid status tracking and management
 ## Author: Guus
 ## Version: 1.0
-## SavedVariables: GuusLegacyManager_Characters
-
 GuusLegacyManager.lua
+
+libs/LibStub.lua
+libs/LibDataBroker-1.1.lua
+libs/LibDBIcon-1.0.lua

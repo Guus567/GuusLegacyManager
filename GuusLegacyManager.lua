@@ -1,52 +1,268 @@
--- GuusLegacyManager - Character Legacy Command Manager
--- Clean, minimal interface for character selection
-
--- Initialize saved variables for character storage
-GuusLegacyManager_Characters = GuusLegacyManager_Characters or {}
+GuusLegacyManager = GuusLegacyManager or {}
+GuusLegacyManager_Config = GuusLegacyManager_Config or {}
+GuusLegacyManager_Config.minimap = GuusLegacyManager_Config.minimap or { minimapPos = 220 }
 
 -- Configuration
 local config = {
     Debug = false,
-    WindowWidth = 580,
+    WindowWidth = 800,
     WindowHeight = 450,
     ButtonHeight = 30,
     ButtonWidth = 100,
     NameWidth = 250,
-    RoleButtonWidth = 60
+    RoleButtonWidth = 60,
+    RaidStatusWidth = 300,
+    RaidButtonWidth = 35,
+    RaidButtonHeight = 20,
+    LegacyOnlyWidth = 600,
+    HideRaidTracking = false
 }
 
--- GUI variables
-local gui = nil
+
+
+local LDB = LibStub("LibDataBroker-1.1")
+local DBIcon = LibStub("LibDBIcon-1.0")
+
+local function ShowGLMWindow()
+    if gui and gui:IsShown() then
+        gui:Hide()
+    else
+        if gui then
+            gui:Show()
+            if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] ShowGLMWindow: gui shown") end
+        else
+            if GuusLegacyManager.CreateGUI then
+                GuusLegacyManager.CreateGUI()
+                if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] ShowGLMWindow: CreateGUI called") end
+            end
+        end
+    end
+end
+
+local glmLDB = LDB:NewDataObject("GuusLegacyManager", {
+    type = "launcher",
+    text = "GLM",
+    icon = "Interface\\GROUPFRAME\\UI-Group-LeaderIcon",
+    OnClick = function(self, button)
+        if button == "RightButton" then
+            if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
+                SlashCmdList["GUUSLEGACYMANAGER"]("resetraids")
+                if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: /legacy resetraids triggered") end
+            end
+        else
+            if gui and gui:IsShown() then
+                gui:Hide()
+                if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window closed") end
+            else
+                if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
+                    SlashCmdList["GUUSLEGACYMANAGER"]("")
+                    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window opened") end
+                end
+            end
+        end
+    end,
+    OnTooltipShow = function(tooltip)
+        tooltip:AddLine("GuusLegacyManager")
+        tooltip:AddLine("Click to open/close the window.")
+        tooltip:AddLine("Right-click for /legacy resetraids")
+    end
+})
+
+    -- Register minimap icon after PLAYER_LOGIN
+    local glmEventFrame = CreateFrame("Frame")
+    glmEventFrame:RegisterEvent("PLAYER_LOGIN")
+    glmEventFrame:SetScript("OnEvent", function()
+        if DBIcon and glmLDB then
+            DBIcon:Register("GuusLegacyManager", glmLDB, GuusLegacyManager_Config.minimap)
+            DBIcon:Show("GuusLegacyManager")
+        else
+            -- Fallback: create a simple minimap icon for Vanilla WoW
+            if not GuusLegacyManager_MinimapIcon then
+                local iconFrame = CreateFrame("Button", "GuusLegacyManager_MinimapIcon", Minimap)
+                iconFrame:SetWidth(32)
+                iconFrame:SetHeight(32)
+                iconFrame:SetFrameStrata("MEDIUM")
+                iconFrame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
+                local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+                icon:SetAllPoints()
+                icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                iconFrame.icon = icon
+                iconFrame:SetScript("OnClick", function()
+                    if GuusLegacyManager.CreateGUI then
+                        GuusLegacyManager.CreateGUI()
+                    end
+                end)
+                iconFrame:SetScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                    GameTooltip:SetText("GuusLegacyManager", 1, 1, 1)
+                    GameTooltip:AddLine("Click to open/close the window.", 0.7, 0.7, 0.7)
+                    GameTooltip:Show()
+                end)
+                iconFrame:SetScript("OnLeave", function()
+                    GameTooltip:Hide()
+                end)
+            end
+        end
+    end)
+
+
+
+
+-- Load persistent HideRaidTracking value if available
+if GuusLegacyManager_Config.HideRaidTracking ~= nil then
+    config.HideRaidTracking = GuusLegacyManager_Config.HideRaidTracking
+end
+
+gui = nil
 local characterButtons = {}
+local RefreshCharacterButtons  -- Forward declaration
+
+-- Function to get raid lockout status
+local function GetRaidLockouts()
+    local raidStatus = {}
+    local raids = {
+        {name = "ZG", match = "Zul'Gurub", maxPlayers = 20},
+        {name = "MC", match = "Molten Core", maxPlayers = 40},
+        {name = "BWL", match = "Blackwing Lair", maxPlayers = 40},
+        {name = "AQ20", match = "Ruins of Ahn'Qiraj", maxPlayers = 20},
+        {name = "AQ40", match = "Temple of Ahn'Qiraj", maxPlayers = 40},
+        {name = "Naxx", match = "Naxxramas", maxPlayers = 40}
+    }
+
+    -- Initialize all raids as available first
+    for i = 1, table.getn(raids) do
+        raidStatus[raids[i].name] = false
+    end
+
+    local numSavedInstances = GetNumSavedInstances()
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Number of saved instances: " .. tostring(numSavedInstances))
+    end
+
+    for j = 1, numSavedInstances do
+        local instanceName, instanceID, instanceReset, instanceDifficulty, locked, extended, instanceIDMostSig, isRaid, maxPlayers, difficultyName, numEncounters, encounterProgress = GetSavedInstanceInfo(j)
+
+        -- Log all raw values for investigation
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM RAW] instanceName=" .. tostring(instanceName)
+                .. " | instanceID=" .. tostring(instanceID)
+                .. " | instanceReset=" .. tostring(instanceReset)
+                .. " | instanceDifficulty=" .. tostring(instanceDifficulty)
+                .. " | locked=" .. tostring(locked)
+                .. " | extended=" .. tostring(extended)
+                .. " | instanceIDMostSig=" .. tostring(instanceIDMostSig)
+                .. " | isRaid=" .. tostring(isRaid)
+                .. " | maxPlayers=" .. tostring(maxPlayers)
+                .. " | difficultyName=" .. tostring(difficultyName)
+                .. " | numEncounters=" .. tostring(numEncounters)
+                .. " | encounterProgress=" .. tostring(encounterProgress))
+
+            local lockedText = locked and "LOCKED" or "AVAILABLE"
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Instance: " .. tostring(instanceName) .. " | ID: " .. tostring(instanceID) .. " | Locked: " .. lockedText .. " | isRaid: " .. tostring(isRaid) .. " | maxPlayers: " .. tostring(maxPlayers))
+        end
+
+        -- Check if this instance matches any of our tracked raids by name
+        for i = 1, table.getn(raids) do
+            local raid = raids[i]
+            if instanceName and string.lower(instanceName) == string.lower(raid.match) then
+                if config.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Found tracked raid: " .. raid.name .. " (Name: " .. raid.match .. ") | Marked as LOCKED (instance present)")
+                end
+                raidStatus[raid.name] = true -- Mark as locked if present in saved instances
+                break
+            end
+        end
+    end
+
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Final raidStatus table:")
+        for raidName, isLocked in pairs(raidStatus) do
+            local statusText = isLocked and "LOCKED" or "AVAILABLE"
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] " .. raidName .. ": " .. statusText)
+        end
+    end
+
+    return raidStatus
+end
 
 -- Function to add current character to saved list
 local function AddCurrentCharacter()
     local playerName = UnitName("player")
     local playerRealm = GetRealmName()
+    local className = UnitClass("player")
+    local faction = UnitFactionGroup("player")
+    local level = UnitLevel("player")
     local fullName = playerName .. "-" .. playerRealm
-    
+
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter: playerName=" .. tostring(playerName) .. ", playerRealm=" .. tostring(playerRealm) .. ", className=" .. tostring(className) .. ", faction=" .. tostring(faction) .. ", level=" .. tostring(level)) end
+
+    -- Get current raid lockout status
+    local raidLockouts = GetRaidLockouts()
+
+    -- Debug output to see what game detects
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Detected raid lockouts:")
+        for raidName, isLocked in pairs(raidLockouts) do
+            local statusText = isLocked and "LOCKED" or "AVAILABLE"
+            DEFAULT_CHAT_FRAME:AddMessage("  " .. raidName .. ": " .. statusText)
+        end
+    end
+
+    -- Check if character already exists
+    local existingChar = GuusLegacyManager[fullName]
+    local existingRaidStatus = {}
+    local existingManualStatus = {}
+
+    -- Preserve existing manual overrides, but update with detected lockouts
+    if existingChar and existingChar.raidStatus then
+        existingRaidStatus = existingChar.raidStatus
+    end
+    if existingChar and existingChar.manualRaidStatus then
+        existingManualStatus = existingChar.manualRaidStatus
+    end
+
+    -- Merge detected lockouts with existing manual settings
+    for raidName, isLocked in pairs(raidLockouts) do
+        local oldStatus = existingRaidStatus[raidName]
+        local wasManual = existingManualStatus[raidName]
+        if isLocked then
+            existingRaidStatus[raidName] = true
+            existingManualStatus[raidName] = false
+        else
+            existingRaidStatus[raidName] = false
+            existingManualStatus[raidName] = false
+        end
+    local oldText = oldStatus and "USED" or "AVAILABLE"
+    local newText = existingRaidStatus[raidName] and "USED" or "AVAILABLE"
+    local manualText = wasManual and " (was manual)" or " (was auto)"
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] " .. raidName .. ": " .. oldText .. manualText .. " -> " .. newText .. " (auto)") end
+    end
+
     -- Store character info
-    GuusLegacyManager_Characters[fullName] = {
+    GuusLegacyManager[fullName] = {
         name = playerName,
         realm = playerRealm,
-        class = UnitClass("player"), 
-        faction = UnitFactionGroup("player"),
-        level = UnitLevel("player"),
-        lastSeen = date("%Y-%m-%d %H:%M:%S")
+        class = className,
+        faction = faction,
+        level = level,
+        lastSeen = date("%Y-%m-%d %H:%M:%S"),
+        raidStatus = existingRaidStatus,
+        manualRaidStatus = existingManualStatus,
     }
-    
-    if config.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("GuusLegacyManager: Added character " .. fullName)
-    end
+
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Added character " .. fullName) end
 end
 
 -- Function to execute legacy command
-local function ExecuteLegacyCommand(characterName, role)
+local function ExecuteLegacyCommand(characterName, role, spec)
     local command = ".z addlegacy \"" .. characterName .. "\" " .. role
-    
+    if spec and type(spec) == "string" and spec ~= "" then
+        command = command .. " " .. string.lower(spec)
+    end
+
     -- Send the command
     SendChatMessage(command, "SAY")
-    
+
     -- Notify user
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Executed: " .. command)
 end
@@ -64,29 +280,76 @@ local function GetAvailableRoles(class)
         ["Warlock"] = {"rdps"},
         ["Druid"] = {"tank", "healer", "mdps", "rdps"}
     }
-    
-    return classRoles[class] or {"mdps"} -- Default to mdps if class not found
+    return classRoles[class] or {"mdps"}
+end
+
+-- Function to toggle raid status manually
+local function ToggleRaidStatus(fullName, raidName)
+    if not GuusLegacyManager[fullName] then
+        return
+    end
+
+    -- Initialize raid status if it doesn't exist
+    if not GuusLegacyManager[fullName].raidStatus then
+        GuusLegacyManager[fullName].raidStatus = {}
+    end
+
+    -- Initialize manual tracking if it doesn't exist
+    if not GuusLegacyManager[fullName].manualRaidStatus then
+        GuusLegacyManager[fullName].manualRaidStatus = {}
+    end
+
+    -- Toggle the status
+    local currentStatus = GuusLegacyManager[fullName].raidStatus[raidName] or false
+    GuusLegacyManager[fullName].raidStatus[raidName] = not currentStatus
+
+    -- Mark this as manually set
+    GuusLegacyManager[fullName].manualRaidStatus[raidName] = true
+
+    local statusText = GuusLegacyManager[fullName].raidStatus[raidName] and "USED" or "AVAILABLE"
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r " .. GuusLegacyManager[fullName].name .. " - " .. raidName .. " marked as " .. statusText .. " (Manual)") end
+
+    -- Note: GUI will refresh when you close and reopen it
+
+    -- Refresh the GUI if it's open (will be set after CreateCharacterButtons is defined)
+    if RefreshCharacterButtons then
+        RefreshCharacterButtons()
+    end
 end
 
 -- Function to create character buttons
+-- ...existing code...
 local function CreateCharacterButtons()
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] CreateCharacterButtons called!") end
+    local charCount = 0
+    for fullName, charData in pairs(GuusLegacyManager) do
+        charCount = charCount + 1
+        if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Character: " .. tostring(fullName) .. " name=" .. tostring(charData.name) .. " class=" .. tostring(charData.class) .. " level=" .. tostring(charData.level)) end
+    end
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Total characters: " .. tostring(charCount)) end
     -- Clear existing buttons
     for i, button in ipairs(characterButtons) do
         button:Hide()
         button:SetParent(nil)
     end
     characterButtons = {}
-    
+
     -- Get sorted character list
     local sortedChars = {}
-    for fullName, charData in pairs(GuusLegacyManager_Characters) do
+    for fullName, charData in pairs(GuusLegacyManager) do
         table.insert(sortedChars, {fullName = fullName, data = charData})
     end
-    
+
     -- Sort by character name
     table.sort(sortedChars, function(a, b)
         return a.data.name < b.data.name
     end)
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("GLM DEBUG: sortedChars count: " .. tostring(table.getn(sortedChars)))
+        for i, charInfo in ipairs(sortedChars) do
+            DEFAULT_CHAT_FRAME:AddMessage("  sorted: " .. tostring(charInfo.fullName) .. " -> " .. tostring(charInfo.data.name or "nil"))
+        end
+    end
     
     -- Role definitions
     local allRoles = {
@@ -99,7 +362,7 @@ local function CreateCharacterButtons()
     -- Create character rows with role buttons
     for i = 1, table.getn(sortedChars) do
         local charInfo = sortedChars[i]
-        local yOffset = -50 - (i - 1) * (config.ButtonHeight + 5)
+        local yOffset = -70 - (i - 1) * (config.ButtonHeight + 5)
         
         -- Get available roles for this character's class
         local availableRoles = GetAvailableRoles(charInfo.data.class)
@@ -135,14 +398,18 @@ local function CreateCharacterButtons()
         -- Character info text
         local factionPrefix = (charInfo.data.faction == "Alliance") and "A" or (charInfo.data.faction == "Horde") and "H" or "?"
         local nameText = factionPrefix .. " " .. charInfo.data.name .. " (" .. charInfo.data.class .. " Lv" .. charInfo.data.level .. ")"
+
         local textElement = nameFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         textElement:SetPoint("LEFT", nameFrame, "LEFT", 8, 0)
         textElement:SetText(nameText)
         textElement:SetTextColor(1, 1, 1)
         textElement:SetJustifyH("LEFT")
-        
+
         table.insert(characterButtons, nameFrame)
-        
+
+        -- Get full character key for lookup and saving
+    local fullName = charInfo.data.name
+
         -- Create role buttons (only for available roles)
         for j = 1, table.getn(validRoles) do
             local role = validRoles[j]
@@ -150,7 +417,7 @@ local function CreateCharacterButtons()
             button:SetWidth(config.RoleButtonWidth)
             button:SetHeight(config.ButtonHeight)
             button:SetPoint("TOPLEFT", nameFrame, "TOPRIGHT", 5 + (j - 1) * (config.RoleButtonWidth + 2), 0)
-            
+
             -- Simple button background without 3D effect
             button:SetBackdrop({
                 bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -160,7 +427,7 @@ local function CreateCharacterButtons()
             })
             button:SetBackdropColor(0.2, 0.2, 0.2, 0.8)
             button:SetBackdropBorderColor(0.6, 0.6, 0.6, 0.8)
-            
+
             -- Hover effect
             button:SetScript("OnEnter", function()
                 button:SetBackdropColor(0.3, 0.3, 0.3, 0.9)
@@ -168,7 +435,7 @@ local function CreateCharacterButtons()
             button:SetScript("OnLeave", function()
                 button:SetBackdropColor(0.2, 0.2, 0.2, 0.8)
             end)
-            
+
             -- Button text - properly centered
             local buttonText = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             buttonText:SetPoint("CENTER", button, "CENTER", 0, 0)
@@ -176,14 +443,101 @@ local function CreateCharacterButtons()
             buttonText:SetTextColor(role.color[1], role.color[2], role.color[3])
             buttonText:SetJustifyH("CENTER")
             buttonText:SetJustifyV("MIDDLE")
-            
-            -- Button click handler
+
+            -- Mage now gets a simple button like other classes
             button:SetScript("OnClick", function()
                 ExecuteLegacyCommand(charInfo.data.name, role.command)
             end)
-            
+
             table.insert(characterButtons, button)
+            -- ...existing code...
         end
+        
+        -- Calculate fixed position for raid status (aligned for all characters)
+        local raidStatusStartX = config.NameWidth + 10 + (4 * (config.RoleButtonWidth + 2)) + 10  -- Fixed position after max possible role buttons
+
+        -- Only show raid tracking if not hidden
+        if not config.HideRaidTracking then
+            -- Create manual raid status buttons
+            local raids = {"ZG", "MC", "BWL", "AQ20", "AQ40", "Naxx"}
+            for j = 1, table.getn(raids) do
+                local raidName = raids[j]
+                local isLocked = false
+                -- Check if character has raid status data
+                if charInfo.data.raidStatus and charInfo.data.raidStatus[raidName] ~= nil then
+                    isLocked = charInfo.data.raidStatus[raidName]
+                end
+                -- Create raid button
+                local raidButton = CreateFrame("Button", "GuusLegacyRaidBtn" .. i .. "_" .. j, gui)
+                raidButton:SetWidth(config.RaidButtonWidth)
+                raidButton:SetHeight(config.ButtonHeight) -- Match legacy button height
+                raidButton:SetPoint("TOPLEFT", gui, "TOPLEFT", raidStatusStartX + (j - 1) * (config.RaidButtonWidth + 2), yOffset)
+                -- Button background
+                raidButton:SetBackdrop({
+                    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                    tile = true, tileSize = 16, edgeSize = 16,
+                    insets = { left = 2, right = 2, top = 2, bottom = 2 }
+                })
+                -- Set color based on status
+                if isLocked then
+                    raidButton:SetBackdropColor(0.8, 0.2, 0.2, 0.8)  -- Red for used
+                    raidButton:SetBackdropBorderColor(1.0, 0.3, 0.3, 0.8)
+                else
+                    raidButton:SetBackdropColor(0.2, 0.8, 0.2, 0.8)  -- Green for available
+                    raidButton:SetBackdropBorderColor(0.3, 1.0, 0.3, 0.8)
+                end
+                -- Hover effects
+                raidButton:SetScript("OnEnter", function()
+                    if isLocked then
+                        raidButton:SetBackdropColor(0.9, 0.3, 0.3, 0.9)
+                    else
+                        raidButton:SetBackdropColor(0.3, 0.9, 0.3, 0.9)
+                    end
+                    -- Show tooltip
+                    GameTooltip:SetOwner(raidButton, "ANCHOR_TOP")
+                    GameTooltip:SetText(raidName .. " - " .. charInfo.data.name, 1, 1, 1)
+                    local statusText = isLocked and "|cffff0000USED|r" or "|cff00ff00AVAILABLE|r"
+                    GameTooltip:AddLine("Status: " .. statusText, 0.7, 0.7, 0.7)
+                    -- Check if this was manually set
+                    local isManual = charInfo.data.manualRaidStatus and charInfo.data.manualRaidStatus[raidName]
+                    if isManual then
+                        GameTooltip:AddLine("|cffffff00Manually set|r", 0.7, 0.7, 0.7)
+                    else
+                        GameTooltip:AddLine("Auto-detected: " .. charInfo.data.lastSeen, 0.7, 0.7, 0.7)
+                    end
+                    GameTooltip:AddLine("Click to toggle", 1, 1, 0)
+                    GameTooltip:Show()
+                end)
+                raidButton:SetScript("OnLeave", function()
+                    if isLocked then
+                        raidButton:SetBackdropColor(0.8, 0.2, 0.2, 0.8)
+                    else
+                        raidButton:SetBackdropColor(0.2, 0.8, 0.2, 0.8)
+                    end
+                    GameTooltip:Hide()
+                end)
+                -- Button text
+                local buttonText = raidButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                buttonText:SetPoint("CENTER", raidButton, "CENTER", 0, 0)
+                buttonText:SetText(raidName)
+                buttonText:SetTextColor(1, 1, 1)
+                buttonText:SetJustifyH("CENTER")
+                buttonText:SetJustifyV("MIDDLE")
+                -- Click handler to toggle status
+                raidButton:SetScript("OnClick", function()
+                    ToggleRaidStatus(charInfo.fullName, raidName)
+                end)
+                table.insert(characterButtons, raidButton)
+            end
+        end
+    end
+end
+
+-- Function to refresh character buttons (defined after CreateCharacterButtons)
+RefreshCharacterButtons = function()
+    if gui and gui:IsVisible() then
+        CreateCharacterButtons()
     end
 end
 
@@ -191,17 +545,23 @@ end
 local function CreateGUI()
     if gui then
         gui:Show()
+            RefreshCharacterButtons() -- Always refresh character info when shown
         return
     end
-    
+
     -- Main frame
     gui = CreateFrame("Frame", "GuusLegacyManagerGUI", UIParent)
-    gui:SetWidth(config.WindowWidth)
+    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] gui frame created: " .. tostring(gui)) end
+    if config.HideRaidTracking then
+        gui:SetWidth(config.LegacyOnlyWidth)
+    else
+        gui:SetWidth(config.WindowWidth)
+    end
     gui:SetHeight(config.WindowHeight)
     gui:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     gui:SetMovable(true)
     gui:EnableMouse(true)
-    
+
     -- Frame background
     gui:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -210,10 +570,16 @@ local function CreateGUI()
         insets = { left = 11, right = 12, top = 12, bottom = 11 }
     })
     
-    -- Title bar
-    local title = gui:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    title:SetPoint("TOP", gui, "TOP", 0, -15)
-    title:SetText("Guus Legacy Manager")
+        -- Title bar
+        local title = gui:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        title:SetPoint("TOP", gui, "TOP", 0, -15)
+        title:SetText("Guus Legacy Manager")
+    
+    -- Subtitle with legend
+    local subtitle = gui:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    subtitle:SetPoint("TOP", gui, "TOP", 0, -35)
+    subtitle:SetText("|cff00ff00Raid status Autoupdates on character login. When hiring companions you can also manually set the status.|r\n|cffff0000(addon cannot read raid status across characters)|r")
+    subtitle:Show()
     
     -- Close button
     local closeBtn = CreateFrame("Button", "GuusLegacyCloseBtn", gui)
@@ -229,69 +595,151 @@ local function CreateGUI()
     gui:SetScript("OnMouseDown", function() gui:StartMoving() end)
     gui:SetScript("OnMouseUp", function() gui:StopMovingOrSizing() end)
     
-    -- Create character buttons
-    CreateCharacterButtons()
-    
-    gui:Show()
+    -- Add Hide Raid Tracking checkbox
+    local hideRaidCheck = CreateFrame("CheckButton", "GLMHideRaidTrackingCheck", gui, "UICheckButtonTemplate")
+    hideRaidCheck:SetPoint("TOPLEFT", gui, "TOPLEFT", 8, -8)
+    hideRaidCheck:SetChecked(config.HideRaidTracking)
+    getglobal(hideRaidCheck:GetName() .. "Text"):SetText("Hide Raid Tracking")
+    hideRaidCheck:SetScript("OnClick", function(self)
+        local checkBtn = self or GLMHideRaidTrackingCheck
+        local checked = false
+        if checkBtn and checkBtn.GetChecked then
+            checked = checkBtn:GetChecked() and true or false
+            config.HideRaidTracking = checked
+        else
+            config.HideRaidTracking = false
+        end
+        GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking checkbox value: " .. tostring(checked))
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking config value: " .. tostring(config.HideRaidTracking))
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking SavedVariable value: " .. tostring(GuusLegacyManager_Config.HideRaidTracking))
+        end
+        if gui then
+            if config.HideRaidTracking then
+                gui:SetWidth(config.LegacyOnlyWidth)
+                subtitle:Hide()
+            else
+                gui:SetWidth(config.WindowWidth)
+                subtitle:Show()
+            end
+        end
+        CreateCharacterButtons()
+    end)
+
+
+
+    -- Ensure HideRaidTracking is saved before logout or reload
+    local function SaveConfigOnLogout()
+        GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
+    end
+
+    local logoutFrame = CreateFrame("Frame")
+    logoutFrame:RegisterEvent("PLAYER_LOGOUT")
+    logoutFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
+    logoutFrame:SetScript("OnEvent", SaveConfigOnLogout)
+
 end
+
+    -- Expose CreateGUI globally for minimap icon
+    GuusLegacyManager.CreateGUI = CreateGUI
 
 -- Slash command handler
 local function SlashCommandHandler(msg)
     local command = string.lower(msg or "")
-    
+
     if command == "show" or command == "menu" or command == "" then
         AddCurrentCharacter()  -- Always add current character when opening
         CreateGUI()
-    elseif command == "refresh" then
+        if gui then
+            RefreshCharacterButtons() -- Always refresh after opening from slash
+        end
+        return
+    end
+
+    -- If the command is not recognized, open the GUI anyway (for icon click fallback)
+    if msg == nil or msg == "" then
         AddCurrentCharacter()
+        CreateGUI()
+        if gui then
+            RefreshCharacterButtons()
+        end
+        return
+    end
+
+    if command == "refresh" then
+        -- Update raid lockouts for ALL characters
+        for fullName, charData in pairs(GuusLegacyManager) do
+            if fullName == (UnitName("player") .. "-" .. GetRealmName()) then
+                -- Only update lockouts for the current character (API limitation)
+                AddCurrentCharacter()
+            end
+        end
         if gui and gui:IsVisible() then
             CreateCharacterButtons()
         end
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Character list refreshed!")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Character list and raid info refreshed!")
     elseif command == "list" then
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Saved Characters:")
         local count = 0
-        for fullName, charData in pairs(GuusLegacyManager_Characters) do
+        for fullName, charData in pairs(GuusLegacyManager) do
             count = count + 1
-            local factionPrefix = (charData.faction == "Alliance") and "A" or (charData.faction == "Horde") and "H" or "?" DEFAULT_CHAT_FRAME:AddMessage("  " .. factionPrefix .. " " .. charData.name .. " (" .. charData.class .. " Lv" .. charData.level .. ") - " .. charData.lastSeen)
+            local factionPrefix = (charData.faction == "Alliance") and "A" or (charData.faction == "Horde") and "H" or "?"
+            local charInfo = "  " .. factionPrefix .. " " .. charData.name .. " (" .. charData.class .. " Lv" .. charData.level .. ") - " .. charData.lastSeen
+            
+            -- Add raid status if available
+            if charData.raidStatus then
+                local raids = {"ZG", "MC", "BWL", "AQ20", "AQ40", "Naxx"}
+                local raidStatusText = " - Raids: "
+                for j = 1, table.getn(raids) do
+                    local raidName = raids[j]
+                    local isLocked = charData.raidStatus[raidName]
+                    local statusColor = isLocked and "|cffff0000" or "|cff00ff00"
+                    raidStatusText = raidStatusText .. statusColor .. raidName .. "|r"
+                    if j < table.getn(raids) then
+                        raidStatusText = raidStatusText .. " "
+                    end
+                end
+                charInfo = charInfo .. raidStatusText
+            end
+            
+            DEFAULT_CHAT_FRAME:AddMessage(charInfo)
         end
         if count == 0 then
             DEFAULT_CHAT_FRAME:AddMessage("  No characters saved yet. Log in with different characters to build the list.")
         end
     elseif command == "clear" then
-        GuusLegacyManager_Characters = {}
+        GuusLegacyManager = {}
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Character list cleared!")
         if gui and gui:IsVisible() then
             CreateCharacterButtons()
         end
+    elseif command == "resetraids" then
+        -- Reset all raid statuses to available
+        for fullName, charData in pairs(GuusLegacyManager) do
+            if charData.raidStatus then
+                for raidName, _ in pairs(charData.raidStatus) do
+                    charData.raidStatus[raidName] = false
+                end
+            end
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r All raid statuses reset to available!")
+        if gui and gui:IsVisible() then
+            CreateCharacterButtons()
+        end
+    -- Companion configuration commands
     else
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager Commands:|r")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy - Open character selection window")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy list - Show all saved characters")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy refresh - Refresh character list")
+        DEFAULT_CHAT_FRAME:AddMessage("  /legacy resetraids - Reset all raids to available")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy clear - Clear all saved characters")
+
     end
 end
 
--- Register slash commands
+
 SLASH_GUUSLEGACYMANAGER1 = "/legacy"
 SLASH_GUUSLEGACYMANAGER2 = "/glm"
 SlashCmdList["GUUSLEGACYMANAGER"] = SlashCommandHandler
-
--- Initialize on login
-local function OnPlayerLogin()
-    AddCurrentCharacter()
-    
-    if config.Debug then
-        DEFAULT_CHAT_FRAME:AddMessage("GuusLegacyManager: Loaded successfully!")
-        DEFAULT_CHAT_FRAME:AddMessage("GuusLegacyManager: Use /legacy to open character manager")
-    end
-end
-
--- Event frame for login detection
-local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:SetScript("OnEvent", OnPlayerLogin)
-
--- Add current character on load
-AddCurrentCharacter()
