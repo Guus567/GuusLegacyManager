@@ -27,6 +27,8 @@ local function ShowGLMWindow()
     if gui and gui:IsShown() then
         gui:Hide()
     else
+        -- Always update raid info when opening the window
+        if GetRaidLockouts then GetRaidLockouts() end
         if gui then
             gui:Show()
             if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] ShowGLMWindow: gui shown") end
@@ -743,3 +745,4 @@ end
 SLASH_GUUSLEGACYMANAGER1 = "/legacy"
 SLASH_GUUSLEGACYMANAGER2 = "/glm"
 SlashCmdList["GUUSLEGACYMANAGER"] = SlashCommandHandler
+
