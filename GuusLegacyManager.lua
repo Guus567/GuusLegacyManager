@@ -121,16 +121,6 @@ end
 gui = nil
 local characterButtons = {}
 local RefreshCharacterButtons  -- Forward declaration
-local function SaveCharacterOnLogout()
-    AddCurrentCharacter()
-end
-
-local saveCharFrame = CreateFrame("Frame")
-saveCharFrame:RegisterEvent("PLAYER_LOGOUT")
-saveCharFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
-saveCharFrame:SetScript("OnEvent", SaveCharacterOnLogout)
-
-
 
 -- Function to get raid lockout status
 local function GetRaidLockouts()
@@ -280,6 +270,16 @@ addCharOnLoginFrame:SetScript("OnEvent", function(self, event)
         DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter called") 
     end
 end)
+
+-- Save current character on logout
+local function SaveCharacterOnLogout()
+    AddCurrentCharacter()
+end
+
+local saveCharFrame = CreateFrame("Frame")
+saveCharFrame:RegisterEvent("PLAYER_LOGOUT")
+saveCharFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
+saveCharFrame:SetScript("OnEvent", SaveCharacterOnLogout)
 
 -- Function to execute legacy command
 local function ExecuteLegacyCommand(characterName, role, spec)
