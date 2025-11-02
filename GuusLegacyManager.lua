@@ -471,6 +471,7 @@ local function CreateCharacterButtons()
                                     GLM_MageSpecFrame:SetWidth(260)
                                     GLM_MageSpecFrame:SetHeight(110)
                                     GLM_MageSpecFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+                                    GLM_MageSpecFrame:SetFrameStrata("DIALOG")
                                     GLM_MageSpecFrame:SetBackdrop({
                                         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
                                         edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
