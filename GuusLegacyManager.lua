@@ -298,6 +298,30 @@ local function ValidateAndCleanCharacterData()
     end
 end
 
+-- Function to safely add character when data is ready
+local function TryAddCurrentCharacter()
+    local playerName = UnitName("player")
+    local playerRealm = GetRealmName()
+    local className = UnitClass("player")
+    local faction = UnitFactionGroup("player")
+    local level = UnitLevel("player")
+    
+    -- Check if all data is available and valid
+    if playerName and playerRealm and className and faction and level and level > 0 then
+        if config.Debug then 
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Player data ready, adding character")
+        end
+        ValidateAndCleanCharacterData()
+        AddCurrentCharacter()
+        return true
+    else
+        if config.Debug then 
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Player data not ready: name=" .. tostring(playerName) .. " realm=" .. tostring(playerRealm) .. " class=" .. tostring(className) .. " faction=" .. tostring(faction) .. " level=" .. tostring(level))
+        end
+        return false
+    end
+end
+
 -- Always add current character to the list on login
 local addCharOnLoginFrame = CreateFrame("Frame")
 addCharOnLoginFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -307,16 +331,27 @@ addCharOnLoginFrame:SetScript("OnEvent", function(self, event)
         DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Event fired: " .. tostring(event)) 
     end
     
-    -- Delay the character addition to ensure player data is fully loaded
-    C_Timer.After(2, function()
-        -- Clean up any existing invalid data first
-        ValidateAndCleanCharacterData()
-        -- Then add current character
-        AddCurrentCharacter()
-        if config.Debug then 
-            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter called (delayed)") 
+    -- Try to add character immediately, then retry if needed
+    if not TryAddCurrentCharacter() then
+        -- If data not ready, keep trying with increasing delays
+        local attempts = 0
+        local function RetryAddCharacter()
+            attempts = attempts + 1
+            if TryAddCurrentCharacter() then
+                if config.Debug then 
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Character added after " .. attempts .. " attempts")
+                end
+                return
+            elseif attempts < 10 then -- Try for up to 10 attempts (20 seconds max)
+                C_Timer.After(2, RetryAddCharacter)
+            else
+                if config.Debug then 
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Failed to add character after " .. attempts .. " attempts")
+                end
+            end
         end
-    end)
+        C_Timer.After(2, RetryAddCharacter)
+    end
 end)
 
 -- Save current character on logout
@@ -486,7 +521,7 @@ local function CreateCharacterButtons()
         table.insert(characterButtons, nameFrame)
 
         -- Get full character key for lookup and saving
-    local fullName = charInfo.data.name
+        local fullName = charInfo.fullName
 
         -- Create role buttons (only for available roles)
         for j = 1, table.getn(validRoles) do
