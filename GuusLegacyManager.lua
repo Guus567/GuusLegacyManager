@@ -4,7 +4,7 @@ GuusLegacyManager_Config.minimap = GuusLegacyManager_Config.minimap or { minimap
 
 -- Configuration
 local config = {
-    Debug = true,
+    Debug = false,
     WindowWidth = 800,
     WindowHeight = 450,
     ButtonHeight = 30,
@@ -110,8 +110,12 @@ local glmLDB = LDB:NewDataObject("GuusLegacyManager", {
 
 
 
+-- Load saved configuration
 if GuusLegacyManager_Config.HideRaidTracking ~= nil then
     config.HideRaidTracking = GuusLegacyManager_Config.HideRaidTracking
+end
+if GuusLegacyManager_Config.Debug ~= nil then
+    config.Debug = GuusLegacyManager_Config.Debug
 end
 
 gui = nil
@@ -730,9 +734,10 @@ local function CreateGUI()
 
 
 
-    -- Ensure HideRaidTracking is saved before logout or reload
+    -- Ensure config is saved before logout or reload
     local function SaveConfigOnLogout()
         GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
+        GuusLegacyManager_Config.Debug = config.Debug
     end
 
     local logoutFrame = CreateFrame("Frame")
@@ -828,6 +833,11 @@ local function SlashCommandHandler(msg)
         if gui and gui:IsVisible() then
             CreateCharacterButtons()
         end
+    elseif command == "debug" then
+        config.Debug = not config.Debug
+        GuusLegacyManager_Config.Debug = config.Debug
+        local status = config.Debug and "|cff00ff00enabled|r" or "|cffff0000disabled|r"
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Debug mode " .. status)
     -- Companion configuration commands
     else
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager Commands:|r")
@@ -836,6 +846,7 @@ local function SlashCommandHandler(msg)
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy refresh - Refresh character list")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy resetraids - Reset all raids to available")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy clear - Clear all saved characters")
+        DEFAULT_CHAT_FRAME:AddMessage("  /legacy debug - Toggle debug mode on/off")
 
     end
 end
