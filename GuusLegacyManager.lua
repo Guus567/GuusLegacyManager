@@ -4,7 +4,7 @@ GuusLegacyManager_Config.minimap = GuusLegacyManager_Config.minimap or { minimap
 
 -- Configuration
 local config = {
-    Debug = false,
+    Debug = true,
     WindowWidth = 800,
     WindowHeight = 450,
     ButtonHeight = 30,
@@ -110,7 +110,6 @@ local glmLDB = LDB:NewDataObject("GuusLegacyManager", {
 
 
 
--- Load persistent HideRaidTracking value if available
 if GuusLegacyManager_Config.HideRaidTracking ~= nil then
     config.HideRaidTracking = GuusLegacyManager_Config.HideRaidTracking
 end
@@ -118,6 +117,16 @@ end
 gui = nil
 local characterButtons = {}
 local RefreshCharacterButtons  -- Forward declaration
+local function SaveCharacterOnLogout()
+    AddCurrentCharacter()
+end
+
+local saveCharFrame = CreateFrame("Frame")
+saveCharFrame:RegisterEvent("PLAYER_LOGOUT")
+saveCharFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
+saveCharFrame:SetScript("OnEvent", SaveCharacterOnLogout)
+
+
 
 -- Function to get raid lockout status
 local function GetRaidLockouts()
@@ -254,6 +263,19 @@ local function AddCurrentCharacter()
 
     if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Added character " .. fullName) end
 end
+
+-- Always add current character to the list on login
+local addCharOnLoginFrame = CreateFrame("Frame")
+addCharOnLoginFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+addCharOnLoginFrame:SetScript("OnEvent", function(self, event)
+    if config.Debug then 
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Event fired: " .. tostring(event)) 
+    end
+    AddCurrentCharacter()
+    if config.Debug then 
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter called") 
+    end
+end)
 
 -- Function to execute legacy command
 local function ExecuteLegacyCommand(characterName, role, spec)
