@@ -197,6 +197,15 @@ local function AddCurrentCharacter()
     local className = UnitClass("player")
     local faction = UnitFactionGroup("player")
     local level = UnitLevel("player")
+    
+    -- Validate that we have all required data before proceeding
+    if not playerName or not playerRealm or not className or not faction or not level or level == 0 then
+        if config.Debug then 
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter: Missing player data, skipping save. playerName=" .. tostring(playerName) .. ", playerRealm=" .. tostring(playerRealm) .. ", className=" .. tostring(className) .. ", faction=" .. tostring(faction) .. ", level=" .. tostring(level))
+        end
+        return
+    end
+    
     local fullName = playerName .. "-" .. playerRealm
 
     if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter: playerName=" .. tostring(playerName) .. ", playerRealm=" .. tostring(playerRealm) .. ", className=" .. tostring(className) .. ", faction=" .. tostring(faction) .. ", level=" .. tostring(level)) end
@@ -258,17 +267,56 @@ local function AddCurrentCharacter()
     if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Added character " .. fullName) end
 end
 
+-- Function to clean up invalid character data
+local function ValidateAndCleanCharacterData()
+    for fullName, charData in pairs(GuusLegacyManager) do
+        local needsUpdate = false
+        
+        -- Fix missing or invalid faction data
+        if not charData.faction or (charData.faction ~= "Alliance" and charData.faction ~= "Horde") then
+            if config.Debug then 
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Fixing invalid faction for " .. fullName .. ": " .. tostring(charData.faction))
+            end
+            -- Don't guess faction, leave it as unknown until player logs in again
+            charData.faction = "Unknown"
+            needsUpdate = true
+        end
+        
+        -- Fix missing or invalid level data
+        if not charData.level or charData.level == 0 then
+            if config.Debug then 
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Fixing invalid level for " .. fullName .. ": " .. tostring(charData.level))
+            end
+            -- Set to 1 as minimum valid level
+            charData.level = 1
+            needsUpdate = true
+        end
+        
+        if needsUpdate and config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Updated character data for " .. fullName)
+        end
+    end
+end
+
 -- Always add current character to the list on login
 local addCharOnLoginFrame = CreateFrame("Frame")
 addCharOnLoginFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+addCharOnLoginFrame:RegisterEvent("PLAYER_LOGIN")
 addCharOnLoginFrame:SetScript("OnEvent", function(self, event)
     if config.Debug then 
         DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Event fired: " .. tostring(event)) 
     end
-    AddCurrentCharacter()
-    if config.Debug then 
-        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter called") 
-    end
+    
+    -- Delay the character addition to ensure player data is fully loaded
+    C_Timer.After(2, function()
+        -- Clean up any existing invalid data first
+        ValidateAndCleanCharacterData()
+        -- Then add current character
+        AddCurrentCharacter()
+        if config.Debug then 
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] AddCurrentCharacter called (delayed)") 
+        end
+    end)
 end)
 
 -- Save current character on logout
@@ -424,8 +472,10 @@ local function CreateCharacterButtons()
         nameFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
         
         -- Character info text
-        local factionPrefix = (charInfo.data.faction == "Alliance") and "A" or (charInfo.data.faction == "Horde") and "H" or "?"
-        local nameText = factionPrefix .. " " .. charInfo.data.name .. " (" .. charInfo.data.class .. " Lv" .. charInfo.data.level .. ")"
+        local faction = charInfo.data.faction or "Unknown"
+        local level = charInfo.data.level or 0
+        local factionPrefix = (faction == "Alliance") and "A" or (faction == "Horde") and "H" or "?"
+        local nameText = factionPrefix .. " " .. charInfo.data.name .. " (" .. charInfo.data.class .. " Lv" .. tostring(level) .. ")"
 
         local textElement = nameFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         textElement:SetPoint("LEFT", nameFrame, "LEFT", 8, 0)
