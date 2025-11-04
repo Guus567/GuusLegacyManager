@@ -579,63 +579,77 @@ local function CreateCharacterButtons()
                             }
                             StaticPopup_Show("GLM_PALADIN_SPEC")
                         elseif charInfo.data.class == "Mage" and role.command == "rdps" then
-                                if not GLM_MageSpecFrame then
-                                    GLM_MageSpecFrame = CreateFrame("Frame", "GLM_MageSpecFrame", UIParent)
-                                    GLM_MageSpecFrame:SetWidth(260)
-                                    GLM_MageSpecFrame:SetHeight(110)
-                                    GLM_MageSpecFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-                                    GLM_MageSpecFrame:SetFrameStrata("DIALOG")
-                                    GLM_MageSpecFrame:SetBackdrop({
-                                        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-                                        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-                                        tile = true, tileSize = 32, edgeSize = 32,
-                                        insets = { left = 11, right = 12, top = 12, bottom = 11 }
-                                    })
-                                    GLM_MageSpecFrame:EnableMouse(true)
-                                    GLM_MageSpecFrame:SetMovable(true)
-                                    GLM_MageSpecFrame:RegisterForDrag("LeftButton")
-                                    GLM_MageSpecFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-                                    GLM_MageSpecFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+                            -- Create a closure to capture the current character's name
+                            local currentCharName = charInfo.data.name
+                            local currentRole = role.command
+                            
+                            if not GLM_MageSpecFrame then
+                                GLM_MageSpecFrame = CreateFrame("Frame", "GLM_MageSpecFrame", UIParent)
+                                GLM_MageSpecFrame:SetWidth(260)
+                                GLM_MageSpecFrame:SetHeight(110)
+                                GLM_MageSpecFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+                                GLM_MageSpecFrame:SetFrameStrata("DIALOG")
+                                GLM_MageSpecFrame:SetBackdrop({
+                                    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+                                    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                                    tile = true, tileSize = 32, edgeSize = 32,
+                                    insets = { left = 11, right = 12, top = 12, bottom = 11 }
+                                })
+                                GLM_MageSpecFrame:EnableMouse(true)
+                                GLM_MageSpecFrame:SetMovable(true)
+                                GLM_MageSpecFrame:RegisterForDrag("LeftButton")
+                                GLM_MageSpecFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+                                GLM_MageSpecFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 
-                                    local title = GLM_MageSpecFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-                                    title:SetPoint("TOP", GLM_MageSpecFrame, "TOP", 0, -10)
-                                    title:SetText("Select Mage Spec")
+                                local title = GLM_MageSpecFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+                                title:SetPoint("TOP", GLM_MageSpecFrame, "TOP", 0, -10)
+                                title:SetText("Select Mage Spec")
 
-                                    local frostBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelButtonTemplate")
-                                    frostBtn:SetWidth(70)
-                                    frostBtn:SetHeight(24)
-                                    frostBtn:SetPoint("BOTTOMLEFT", GLM_MageSpecFrame, "BOTTOMLEFT", 15, 15)
-                                    frostBtn:SetText("Frost")
-                                    frostBtn:SetScript("OnClick", function()
-                                        ExecuteLegacyCommand(charInfo.data.name, role.command, "frost")
-                                        GLM_MageSpecFrame:Hide()
-                                    end)
+                                local frostBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelButtonTemplate")
+                                frostBtn:SetWidth(70)
+                                frostBtn:SetHeight(24)
+                                frostBtn:SetPoint("BOTTOMLEFT", GLM_MageSpecFrame, "BOTTOMLEFT", 15, 15)
+                                frostBtn:SetText("Frost")
 
-                                    local fireBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelButtonTemplate")
-                                    fireBtn:SetWidth(70)
-                                    fireBtn:SetHeight(24)
-                                    fireBtn:SetPoint("BOTTOM", GLM_MageSpecFrame, "BOTTOM", 0, 15)
-                                    fireBtn:SetText("Fire")
-                                    fireBtn:SetScript("OnClick", function()
-                                        ExecuteLegacyCommand(charInfo.data.name, role.command, "fire")
-                                        GLM_MageSpecFrame:Hide()
-                                    end)
+                                local fireBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelButtonTemplate")
+                                fireBtn:SetWidth(70)
+                                fireBtn:SetHeight(24)
+                                fireBtn:SetPoint("BOTTOM", GLM_MageSpecFrame, "BOTTOM", 0, 15)
+                                fireBtn:SetText("Fire")
 
-                                    local arcaneBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelButtonTemplate")
-                                    arcaneBtn:SetWidth(70)
-                                    arcaneBtn:SetHeight(24)
-                                    arcaneBtn:SetPoint("BOTTOMRIGHT", GLM_MageSpecFrame, "BOTTOMRIGHT", -15, 15)
-                                    arcaneBtn:SetText("Arcane")
-                                    arcaneBtn:SetScript("OnClick", function()
-                                        ExecuteLegacyCommand(charInfo.data.name, role.command, "arcane")
-                                        GLM_MageSpecFrame:Hide()
-                                    end)
+                                local arcaneBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelButtonTemplate")
+                                arcaneBtn:SetWidth(70)
+                                arcaneBtn:SetHeight(24)
+                                arcaneBtn:SetPoint("BOTTOMRIGHT", GLM_MageSpecFrame, "BOTTOMRIGHT", -15, 15)
+                                arcaneBtn:SetText("Arcane")
 
-                                    local closeBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelCloseButton")
-                                    closeBtn:SetPoint("TOPRIGHT", GLM_MageSpecFrame, "TOPRIGHT", -5, -5)
-                                    closeBtn:SetScript("OnClick", function() GLM_MageSpecFrame:Hide() end)
-                                end
-                                GLM_MageSpecFrame:Show()
+                                local closeBtn = CreateFrame("Button", nil, GLM_MageSpecFrame, "UIPanelCloseButton")
+                                closeBtn:SetPoint("TOPRIGHT", GLM_MageSpecFrame, "TOPRIGHT", -5, -5)
+                                closeBtn:SetScript("OnClick", function() GLM_MageSpecFrame:Hide() end)
+                                
+                                -- Store button references
+                                GLM_MageSpecFrame.frostBtn = frostBtn
+                                GLM_MageSpecFrame.fireBtn = fireBtn
+                                GLM_MageSpecFrame.arcaneBtn = arcaneBtn
+                            end
+                            
+                            -- Update button click handlers with current character
+                            GLM_MageSpecFrame.frostBtn:SetScript("OnClick", function()
+                                ExecuteLegacyCommand(currentCharName, currentRole, "frost")
+                                GLM_MageSpecFrame:Hide()
+                            end)
+                            
+                            GLM_MageSpecFrame.fireBtn:SetScript("OnClick", function()
+                                ExecuteLegacyCommand(currentCharName, currentRole, "fire")
+                                GLM_MageSpecFrame:Hide()
+                            end)
+                            
+                            GLM_MageSpecFrame.arcaneBtn:SetScript("OnClick", function()
+                                ExecuteLegacyCommand(currentCharName, currentRole, "arcane")
+                                GLM_MageSpecFrame:Hide()
+                            end)
+                            
+                            GLM_MageSpecFrame:Show()
                         else
                             ExecuteLegacyCommand(charInfo.data.name, role.command)
                         end
