@@ -18,8 +18,7 @@ local config = {
     HideRaidTracking = false
 }
 
-
-
+-- Load libraries
 local LDB = LibStub("LibDataBroker-1.1")
 local DBIcon = LibStub("LibDBIcon-1.0")
 
@@ -41,34 +40,37 @@ local function ShowGLMWindow()
     end
 end
 
-local glmLDB = LDB:NewDataObject("GuusLegacyManager", {
-    type = "launcher",
-    text = "GLM",
-    icon = "Interface\\GROUPFRAME\\UI-Group-LeaderIcon",
-    OnClick = function(self, button)
-        if button == "RightButton" then
-            if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
-                SlashCmdList["GUUSLEGACYMANAGER"]("resetraids")
-                if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: /legacy resetraids triggered") end
-            end
-        else
-            if gui and gui:IsShown() then
-                gui:Hide()
-                if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window closed") end
-            else
+local glmLDB
+if LDB then
+    glmLDB = LDB:NewDataObject("GuusLegacyManager", {
+        type = "launcher",
+        text = "GLM",
+        icon = "Interface\\GROUPFRAME\\UI-Group-LeaderIcon",
+        OnClick = function(self, button)
+            if button == "RightButton" then
                 if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
-                    SlashCmdList["GUUSLEGACYMANAGER"]("")
-                    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window opened") end
+                    SlashCmdList["GUUSLEGACYMANAGER"]("resetraids")
+                    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: /legacy resetraids triggered") end
+                end
+            else
+                if gui and gui:IsShown() then
+                    gui:Hide()
+                    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window closed") end
+                else
+                    if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
+                        SlashCmdList["GUUSLEGACYMANAGER"]("")
+                        if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window opened") end
+                    end
                 end
             end
+        end,
+        OnTooltipShow = function(tooltip)
+            tooltip:AddLine("GuusLegacyManager")
+            tooltip:AddLine("Click to open/close the window.")
+            tooltip:AddLine("Right-click for /legacy resetraids")
         end
-    end,
-    OnTooltipShow = function(tooltip)
-        tooltip:AddLine("GuusLegacyManager")
-        tooltip:AddLine("Click to open/close the window.")
-        tooltip:AddLine("Right-click for /legacy resetraids")
-    end
-})
+    })
+end
 
     -- Register minimap icon after PLAYER_LOGIN
     local glmEventFrame = CreateFrame("Frame")
