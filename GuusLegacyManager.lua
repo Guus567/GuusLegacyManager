@@ -1,6 +1,7 @@
+-- Initialize addon tables (saved variables will be properly loaded later)
 GuusLegacyManager = GuusLegacyManager or {}
 GuusLegacyManager_Config = GuusLegacyManager_Config or {}
-GuusLegacyManager_Config.minimap = GuusLegacyManager_Config.minimap or { minimapPos = 220 }
+-- Don't initialize minimap config here - will be done after VARIABLES_LOADED
 
 -- Configuration
 local config = {
@@ -18,111 +19,239 @@ local config = {
     HideRaidTracking = false
 }
 
--- Load libraries with safety checks
-local LDB = LibStub and LibStub("LibDataBroker-1.1", true) or nil
-local DBIcon = LibStub and LibStub("LibDBIcon-1.0", true) or nil
+-- Declare variables for later initialization
+local LDB, DBIcon, glmLDB
 
 local function ShowGLMWindow()
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] ShowGLMWindow called")
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] gui exists: " .. tostring(gui ~= nil))
+        
+        if gui then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] gui:IsShown(): " .. tostring(gui:IsShown()))
+        end
+        
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] GuusLegacyManager.CreateGUI exists: " .. tostring(GuusLegacyManager.CreateGUI ~= nil))
+    end
+    
     if gui and gui:IsShown() then
         gui:Hide()
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Window hidden")
+        end
     else
         -- Always update raid info when opening the window
         if GetRaidLockouts then GetRaidLockouts() end
         if gui then
+            if config.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Showing existing GUI")
+            end
             gui:Show()
-            if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] ShowGLMWindow: gui shown") end
         else
+            if config.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] GUI doesn't exist, trying to create")
+            end
             if GuusLegacyManager.CreateGUI then
+                if config.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Calling CreateGUI")
+                end
                 GuusLegacyManager.CreateGUI()
-                if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] ShowGLMWindow: CreateGUI called") end
+            else
+                if config.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] CreateGUI function not available")
+                end
             end
         end
     end
 end
 
-local glmLDB
-if LDB then
-    glmLDB = LDB:NewDataObject("GuusLegacyManager", {
-        type = "launcher",
-        text = "GLM",
-        icon = "Interface\\GROUPFRAME\\UI-Group-LeaderIcon",
-        OnClick = function(self, button)
-            if button == "RightButton" then
-                if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
-                    SlashCmdList["GUUSLEGACYMANAGER"]("resetraids")
-                    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: /legacy resetraids triggered") end
+-- Simple initialization with timer (more reliable for vanilla WoW)
+local function InitializeMinimapIcon()
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] InitializeMinimapIcon called")
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] LibStub: " .. tostring(LibStub ~= nil))
+    end
+    
+    if not LibStub then
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] LibStub not available, retrying...")
+        end
+        return false
+    end
+    
+    -- Load libraries
+    local success = pcall(function()
+        LDB = LibStub("LibDataBroker-1.1", true)
+        DBIcon = LibStub("LibDBIcon-1.0", true)
+    end)
+    
+    if not success then
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Library loading failed, retrying...")
+        end
+        return false
+    end
+    
+    if config.Debug then
+        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Libraries loaded - LDB: " .. tostring(LDB ~= nil) .. " DBIcon: " .. tostring(DBIcon ~= nil))
+    end
+    
+    -- Create LDB object
+    if LDB then
+        local success2 = pcall(function()
+            glmLDB = LDB:NewDataObject("GuusLegacyManager", {
+                type = "launcher",
+                text = "GLM",
+                icon = "Interface\\GROUPFRAME\\UI-Group-LeaderIcon",
+                OnClick = function(self, button)
+                    if config.Debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Icon clicked: " .. tostring(button))
+                    end
+                    
+                    if button == "RightButton" then
+                        if config.Debug then
+                            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Right-click detected")
+                        end
+                        if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
+                            SlashCmdList["GUUSLEGACYMANAGER"]("resetraids")
+                        else
+                            if config.Debug then
+                                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Slash command not available for resetraids")
+                            end
+                        end
+                    else
+                        -- Check if window is open and toggle accordingly
+                        if gui and gui:IsShown() then
+                            -- Window is open, close it
+                            gui:Hide()
+                        else
+                            -- Window is closed, open it using slash command
+                            if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
+                                SlashCmdList["GUUSLEGACYMANAGER"]("")
+                            end
+                        end
+                    end
+                end,
+                OnTooltipShow = function(tooltip)
+                    if tooltip and tooltip.AddLine then
+                        tooltip:AddLine("GuusLegacyManager")
+                        tooltip:AddLine("Click to open/close the window.")
+                        tooltip:AddLine("Right-click for /legacy resetraids")
+                    end
+                end
+            })
+        end)
+        
+        if success2 and glmLDB then
+            if config.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] LDB object created successfully")
+            end
+            
+            -- Register with DBIcon to make it interactive
+            if DBIcon then
+                local iconSuccess = pcall(function()
+                    -- GuusLegacyManager_Config.minimap should already be initialized by VARIABLES_LOADED
+                    if config.Debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Registering icon with position: " .. tostring(GuusLegacyManager_Config.minimap.minimapPos))
+                        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap config: hide=" .. tostring(GuusLegacyManager_Config.minimap.hide))
+                    end
+                    
+                    -- Register with LibDBIcon - this should automatically handle position saving
+                    DBIcon:Register("GuusLegacyManager", glmLDB, GuusLegacyManager_Config.minimap)
+                    DBIcon:Show("GuusLegacyManager")
+                end)
+                
+                if iconSuccess then
+                    if config.Debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] DBIcon registration successful - icon should be clickable")
+                    end
+                    
+                    -- LibDBIcon should automatically save to our GuusLegacyManager_Config.minimap table
+                    -- since we passed it as the profile parameter. The position should persist automatically.
+                    
+                else
+                    if config.Debug then
+                        DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] DBIcon registration failed")
+                    end
                 end
             else
-                if gui and gui:IsShown() then
-                    gui:Hide()
-                    if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window closed") end
-                else
-                    if SlashCmdList and SlashCmdList["GUUSLEGACYMANAGER"] then
-                        SlashCmdList["GUUSLEGACYMANAGER"]("")
-                        if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon: window opened") end
-                    end
+                if config.Debug then
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] DBIcon not available for registration")
                 end
             end
-        end,
-        OnTooltipShow = function(tooltip)
-            tooltip:AddLine("GuusLegacyManager")
-            tooltip:AddLine("Click to open/close the window.")
-            tooltip:AddLine("Right-click for /legacy resetraids")
-        end
-    })
-end
-
-    -- Register minimap icon after PLAYER_LOGIN
-    local glmEventFrame = CreateFrame("Frame")
-    glmEventFrame:RegisterEvent("PLAYER_LOGIN")
-    glmEventFrame:SetScript("OnEvent", function()
-        if DBIcon and glmLDB then
-            DBIcon:Register("GuusLegacyManager", glmLDB, GuusLegacyManager_Config.minimap)
-            DBIcon:Show("GuusLegacyManager")
+            
+            return true
         else
-            -- Fallback: create a simple minimap icon for Vanilla WoW
-            if not GuusLegacyManager_MinimapIcon then
-                local iconFrame = CreateFrame("Button", "GuusLegacyManager_MinimapIcon", Minimap)
-                iconFrame:SetWidth(32)
-                iconFrame:SetHeight(32)
-                iconFrame:SetFrameStrata("MEDIUM")
-                iconFrame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
-                local icon = iconFrame:CreateTexture(nil, "ARTWORK")
-                icon:SetAllPoints()
-                icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-                iconFrame.icon = icon
-                iconFrame:SetScript("OnClick", function()
-                    if GuusLegacyManager.CreateGUI then
-                        GuusLegacyManager.CreateGUI()
-                    end
-                end)
-                iconFrame:SetScript("OnEnter", function(self)
-                    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                    GameTooltip:SetText("GuusLegacyManager", 1, 1, 1)
-                    GameTooltip:AddLine("Click to open/close the window.", 0.7, 0.7, 0.7)
-                    GameTooltip:Show()
-                end)
-                iconFrame:SetScript("OnLeave", function()
-                    GameTooltip:Hide()
-                end)
+            if config.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] LDB object creation failed")
             end
         end
-    end)
-
-
-
-
--- Load saved configuration
-if GuusLegacyManager_Config.HideRaidTracking ~= nil then
-    config.HideRaidTracking = GuusLegacyManager_Config.HideRaidTracking
-end
-if GuusLegacyManager_Config.Debug ~= nil then
-    config.Debug = GuusLegacyManager_Config.Debug
+    end
+    
+    return false
 end
 
+-- Try initialization with retries
+local initAttempts = 0
+local function TryInitialization()
+    initAttempts = initAttempts + 1
+    
+    if InitializeMinimapIcon() then
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Minimap icon initialized successfully on attempt " .. initAttempts)
+        end
+        return
+    end
+    
+    if initAttempts < 5 then
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Initialization attempt " .. initAttempts .. " failed, retrying in 2 seconds...")
+        end
+        C_Timer.After(2, TryInitialization)
+    else
+        if config.Debug then
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] All initialization attempts failed")
+        end
+    end
+end
+
+-- Initialize configuration and minimap icon after saved variables are loaded
+local configFrame = CreateFrame("Frame")
+configFrame:RegisterEvent("VARIABLES_LOADED")
+configFrame:SetScript("OnEvent", function()
+    -- Ensure the config table exists
+    if not GuusLegacyManager_Config then
+        GuusLegacyManager_Config = {}
+    end
+    
+    -- Ensure minimap config exists with proper default
+    if not GuusLegacyManager_Config.minimap then
+        GuusLegacyManager_Config.minimap = { 
+            hide = false,
+            minimapPos = 220,
+            radius = 80 
+        }
+    end
+    
+    -- Load saved configuration
+    if GuusLegacyManager_Config.HideRaidTracking ~= nil then
+        config.HideRaidTracking = GuusLegacyManager_Config.HideRaidTracking
+    end
+    if GuusLegacyManager_Config.Debug ~= nil then
+        config.Debug = GuusLegacyManager_Config.Debug
+    end
+    
+    -- Now initialize minimap icon after saved variables are ready
+    TryInitialization()
+    
+    -- Unregister this event since we only need it once
+    configFrame:UnregisterEvent("VARIABLES_LOADED")
+end)
+
+-- Global variables
 gui = nil
 local characterButtons = {}
-local RefreshCharacterButtons  -- Forward declaration
+local RefreshCharacterButtons
 
 -- Function to get raid lockout status
 local function GetRaidLockouts()
@@ -149,23 +278,9 @@ local function GetRaidLockouts()
     for j = 1, numSavedInstances do
         local instanceName, instanceID, instanceReset, instanceDifficulty, locked, extended, instanceIDMostSig, isRaid, maxPlayers, difficultyName, numEncounters, encounterProgress = GetSavedInstanceInfo(j)
 
-        -- Log all raw values for investigation
         if config.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("[GLM RAW] instanceName=" .. tostring(instanceName)
-                .. " | instanceID=" .. tostring(instanceID)
-                .. " | instanceReset=" .. tostring(instanceReset)
-                .. " | instanceDifficulty=" .. tostring(instanceDifficulty)
-                .. " | locked=" .. tostring(locked)
-                .. " | extended=" .. tostring(extended)
-                .. " | instanceIDMostSig=" .. tostring(instanceIDMostSig)
-                .. " | isRaid=" .. tostring(isRaid)
-                .. " | maxPlayers=" .. tostring(maxPlayers)
-                .. " | difficultyName=" .. tostring(difficultyName)
-                .. " | numEncounters=" .. tostring(numEncounters)
-                .. " | encounterProgress=" .. tostring(encounterProgress))
-
             local lockedText = locked and "LOCKED" or "AVAILABLE"
-            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Instance: " .. tostring(instanceName) .. " | ID: " .. tostring(instanceID) .. " | Locked: " .. lockedText .. " | isRaid: " .. tostring(isRaid) .. " | maxPlayers: " .. tostring(maxPlayers))
+            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Instance: " .. tostring(instanceName) .. " | " .. lockedText .. " | isRaid: " .. tostring(isRaid))
         end
 
         -- Check if this instance matches any of our tracked raids by name
@@ -224,6 +339,11 @@ local function AddCurrentCharacter()
         end
     end
 
+    -- Ensure GuusLegacyManager table exists
+    if not GuusLegacyManager then
+        GuusLegacyManager = {}
+    end
+    
     -- Check if character already exists
     local existingChar = GuusLegacyManager[fullName]
     local existingRaidStatus = {}
@@ -271,6 +391,12 @@ end
 
 -- Function to clean up invalid character data
 local function ValidateAndCleanCharacterData()
+    -- Ensure GuusLegacyManager table exists
+    if not GuusLegacyManager then
+        GuusLegacyManager = {}
+        return
+    end
+    
     for fullName, charData in pairs(GuusLegacyManager) do
         local needsUpdate = false
         
@@ -431,9 +557,16 @@ local function ToggleRaidStatus(fullName, raidName)
 end
 
 -- Function to create character buttons
--- ...existing code...
 local function CreateCharacterButtons()
     if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] CreateCharacterButtons called!") end
+    
+    -- Ensure GuusLegacyManager table exists
+    if not GuusLegacyManager then
+        GuusLegacyManager = {}
+        if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] GuusLegacyManager table was nil, created empty table") end
+        return
+    end
+    
     local charCount = 0
     for fullName, charData in pairs(GuusLegacyManager) do
         charCount = charCount + 1
@@ -656,7 +789,6 @@ local function CreateCharacterButtons()
                 end)
 
             table.insert(characterButtons, button)
-            -- ...existing code...
         end
         
         -- Calculate fixed position for raid status (aligned for all characters)
@@ -815,11 +947,15 @@ local function CreateGUI()
         else
             config.HideRaidTracking = false
         end
-        GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
+        if GuusLegacyManager_Config then
+            GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
+        end
         if config.Debug then
             DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking checkbox value: " .. tostring(checked))
             DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking config value: " .. tostring(config.HideRaidTracking))
-            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking SavedVariable value: " .. tostring(GuusLegacyManager_Config.HideRaidTracking))
+            if GuusLegacyManager_Config then
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] HideRaidTracking SavedVariable value: " .. tostring(GuusLegacyManager_Config.HideRaidTracking))
+            end
         end
         if gui then
             if config.HideRaidTracking then
@@ -837,8 +973,11 @@ local function CreateGUI()
 
     -- Ensure config is saved before logout or reload
     local function SaveConfigOnLogout()
-        GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
-        GuusLegacyManager_Config.Debug = config.Debug
+        if GuusLegacyManager_Config then
+            GuusLegacyManager_Config.HideRaidTracking = config.HideRaidTracking
+            GuusLegacyManager_Config.Debug = config.Debug
+            -- LibDBIcon automatically saves position data to GuusLegacyManager_Config.minimap
+        end
     end
 
     local logoutFrame = CreateFrame("Frame")
@@ -875,6 +1014,10 @@ local function SlashCommandHandler(msg)
     end
 
     if command == "refresh" then
+        -- Ensure GuusLegacyManager exists
+        if not GuusLegacyManager then
+            GuusLegacyManager = {}
+        end
         -- Update raid lockouts for ALL characters
         for fullName, charData in pairs(GuusLegacyManager) do
             if fullName == (UnitName("player") .. "-" .. GetRealmName()) then
@@ -889,6 +1032,10 @@ local function SlashCommandHandler(msg)
     elseif command == "list" then
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Saved Characters:")
         local count = 0
+        -- Ensure GuusLegacyManager exists
+        if not GuusLegacyManager then
+            GuusLegacyManager = {}
+        end
         for fullName, charData in pairs(GuusLegacyManager) do
             count = count + 1
             local factionPrefix = (charData.faction == "Alliance") and "A" or (charData.faction == "Horde") and "H" or "?"
@@ -923,6 +1070,10 @@ local function SlashCommandHandler(msg)
         end
     elseif command == "resetraids" then
         -- Reset all raid statuses to available
+        -- Ensure GuusLegacyManager exists
+        if not GuusLegacyManager then
+            GuusLegacyManager = {}
+        end
         for fullName, charData in pairs(GuusLegacyManager) do
             if charData.raidStatus then
                 for raidName, _ in pairs(charData.raidStatus) do
@@ -936,10 +1087,11 @@ local function SlashCommandHandler(msg)
         end
     elseif command == "debug" then
         config.Debug = not config.Debug
-        GuusLegacyManager_Config.Debug = config.Debug
+        if GuusLegacyManager_Config then
+            GuusLegacyManager_Config.Debug = config.Debug
+        end
         local status = config.Debug and "|cff00ff00enabled|r" or "|cffff0000disabled|r"
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Debug mode " .. status)
-    -- Companion configuration commands
     else
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager Commands:|r")
         DEFAULT_CHAT_FRAME:AddMessage("  /legacy - Open character selection window")
@@ -956,3 +1108,29 @@ end
 SLASH_GUUSLEGACYMANAGER1 = "/legacy"
 SLASH_GUUSLEGACYMANAGER2 = "/glm"
 SlashCmdList["GUUSLEGACYMANAGER"] = SlashCommandHandler
+
+-- Add reload UI commands
+SLASH_RELOADUI1 = "/rl"
+SLASH_RELOADUI2 = "/reload"
+SLASH_RELOADUI3 = "/reloadui"
+SLASH_RELOADUI4 = "/rui"
+SlashCmdList["RELOADUI"] = function()
+    ReloadUI()
+end
+
+-- Try to register /rl again after a delay to override any conflicts
+local reloadFrame = CreateFrame("Frame")
+reloadFrame:RegisterEvent("ADDON_LOADED")
+reloadFrame:SetScript("OnEvent", function(self, event, addonName)
+    if addonName == "GuusLegacyManager" then
+        -- Re-register reload commands after our addon loads
+        SLASH_RELOADUI1 = "/rl"
+        SLASH_RELOADUI2 = "/reload"
+        SLASH_RELOADUI3 = "/reloadui" 
+        SLASH_RELOADUI4 = "/rui"
+        SlashCmdList["RELOADUI"] = function()
+            ReloadUI()
+        end
+        self:UnregisterEvent("ADDON_LOADED")
+    end
+end)
