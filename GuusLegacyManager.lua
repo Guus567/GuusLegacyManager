@@ -1,9 +1,3 @@
--- Ensure global environment is available
-if not _G then
-    error("GuusLegacyManager: Global environment (_G) not available. Please restart WoW completely.")
-    return
-end
-
 GuusLegacyManager = GuusLegacyManager or {}
 GuusLegacyManager_Config = GuusLegacyManager_Config or {}
 GuusLegacyManager_Config.minimap = GuusLegacyManager_Config.minimap or { minimapPos = 220 }
