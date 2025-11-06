@@ -1,3 +1,9 @@
+-- Ensure global environment is available
+if not _G then
+    error("GuusLegacyManager: Global environment (_G) not available. Please restart WoW completely.")
+    return
+end
+
 GuusLegacyManager = GuusLegacyManager or {}
 GuusLegacyManager_Config = GuusLegacyManager_Config or {}
 GuusLegacyManager_Config.minimap = GuusLegacyManager_Config.minimap or { minimapPos = 220 }
@@ -18,9 +24,9 @@ local config = {
     HideRaidTracking = false
 }
 
--- Load libraries
-local LDB = LibStub("LibDataBroker-1.1")
-local DBIcon = LibStub("LibDBIcon-1.0")
+-- Load libraries with safety checks
+local LDB = LibStub and LibStub("LibDataBroker-1.1", true) or nil
+local DBIcon = LibStub and LibStub("LibDBIcon-1.0", true) or nil
 
 local function ShowGLMWindow()
     if gui and gui:IsShown() then

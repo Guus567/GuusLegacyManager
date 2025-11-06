@@ -4,6 +4,8 @@
 ## Notes: Raid status tracking and management
 ## Author: Guus
 ## Version: 1.0
+## LoadOnDemand: 0
+## DefaultState: enabled
 
 libs/LibStub.lua
 libs/CallbackHandler-1.0.lua

@@ -3,12 +3,14 @@
 -- LibStub is hereby placed in the Public Domain
 -- Credits: Kaelten, Cladhaire, ckknight, Mikk, Ammo, Nevcairiel, joshborke
 local LIBSTUB_MAJOR, LIBSTUB_MINOR = "LibStub", 2  -- NEVER MAKE THIS AN SVN REVISION! IT NEEDS TO BE USABLE IN ALL REPOS!
-local LibStub = _G[LIBSTUB_MAJOR]
+local LibStub = _G and _G[LIBSTUB_MAJOR] or nil
 
 -- Check to see is this version of the stub is obsolete
 if not LibStub or LibStub.minor < LIBSTUB_MINOR then
 	LibStub = LibStub or {libs = {}, minors = {} }
-	_G[LIBSTUB_MAJOR] = LibStub
+	if _G then
+		_G[LIBSTUB_MAJOR] = LibStub
+	end
 	LibStub.minor = LIBSTUB_MINOR
 	
 	-- LibStub:NewLibrary(major, minor)
