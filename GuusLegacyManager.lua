@@ -398,30 +398,33 @@ local function ValidateAndCleanCharacterData()
     end
     
     for fullName, charData in pairs(GuusLegacyManager) do
-        local needsUpdate = false
-        
-        -- Fix missing or invalid faction data
-        if not charData.faction or (charData.faction ~= "Alliance" and charData.faction ~= "Horde") then
-            if config.Debug then 
-                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Fixing invalid faction for " .. fullName .. ": " .. tostring(charData.faction))
+        -- Skip non-table entries (functions, etc.)
+        if type(charData) == "table" then
+            local needsUpdate = false
+            
+            -- Fix missing or invalid faction data
+            if not charData.faction or (charData.faction ~= "Alliance" and charData.faction ~= "Horde") then
+                if config.Debug then 
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Fixing invalid faction for " .. fullName .. ": " .. tostring(charData.faction))
+                end
+                -- Don't guess faction, leave it as unknown until player logs in again
+                charData.faction = "Unknown"
+                needsUpdate = true
             end
-            -- Don't guess faction, leave it as unknown until player logs in again
-            charData.faction = "Unknown"
-            needsUpdate = true
-        end
-        
-        -- Fix missing or invalid level data
-        if not charData.level or charData.level == 0 then
-            if config.Debug then 
-                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Fixing invalid level for " .. fullName .. ": " .. tostring(charData.level))
+            
+            -- Fix missing or invalid level data
+            if not charData.level or charData.level == 0 then
+                if config.Debug then 
+                    DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Fixing invalid level for " .. fullName .. ": " .. tostring(charData.level))
+                end
+                -- Set to 1 as minimum valid level
+                charData.level = 1
+                needsUpdate = true
             end
-            -- Set to 1 as minimum valid level
-            charData.level = 1
-            needsUpdate = true
-        end
-        
-        if needsUpdate and config.Debug then
-            DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Updated character data for " .. fullName)
+            
+            if needsUpdate and config.Debug then
+                DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Updated character data for " .. fullName)
+            end
         end
     end
 end
@@ -569,8 +572,11 @@ local function CreateCharacterButtons()
     
     local charCount = 0
     for fullName, charData in pairs(GuusLegacyManager) do
-        charCount = charCount + 1
-        if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Character: " .. tostring(fullName) .. " name=" .. tostring(charData.name) .. " class=" .. tostring(charData.class) .. " level=" .. tostring(charData.level)) end
+        -- Skip non-table entries
+        if type(charData) == "table" then
+            charCount = charCount + 1
+            if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Character: " .. tostring(fullName) .. " name=" .. tostring(charData.name) .. " class=" .. tostring(charData.class) .. " level=" .. tostring(charData.level)) end
+        end
     end
     if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] Total characters: " .. tostring(charCount)) end
     -- Clear existing buttons
@@ -583,7 +589,10 @@ local function CreateCharacterButtons()
     -- Get sorted character list
     local sortedChars = {}
     for fullName, charData in pairs(GuusLegacyManager) do
-        table.insert(sortedChars, {fullName = fullName, data = charData})
+        -- Skip non-table entries
+        if type(charData) == "table" then
+            table.insert(sortedChars, {fullName = fullName, data = charData})
+        end
     end
 
     -- Sort by character name
@@ -1020,9 +1029,12 @@ local function SlashCommandHandler(msg)
         end
         -- Update raid lockouts for ALL characters
         for fullName, charData in pairs(GuusLegacyManager) do
-            if fullName == (UnitName("player") .. "-" .. GetRealmName()) then
-                -- Only update lockouts for the current character (API limitation)
-                AddCurrentCharacter()
+            -- Skip non-table entries
+            if type(charData) == "table" then
+                if fullName == (UnitName("player") .. "-" .. GetRealmName()) then
+                    -- Only update lockouts for the current character (API limitation)
+                    AddCurrentCharacter()
+                end
             end
         end
         if gui and gui:IsVisible() then
@@ -1037,9 +1049,11 @@ local function SlashCommandHandler(msg)
             GuusLegacyManager = {}
         end
         for fullName, charData in pairs(GuusLegacyManager) do
-            count = count + 1
-            local factionPrefix = (charData.faction == "Alliance") and "A" or (charData.faction == "Horde") and "H" or "?"
-            local charInfo = "  " .. factionPrefix .. " " .. charData.name .. " (" .. charData.class .. " Lv" .. charData.level .. ") - " .. charData.lastSeen
+            -- Skip non-table entries
+            if type(charData) == "table" then
+                count = count + 1
+                local factionPrefix = (charData.faction == "Alliance") and "A" or (charData.faction == "Horde") and "H" or "?"
+                local charInfo = "  " .. factionPrefix .. " " .. charData.name .. " (" .. charData.class .. " Lv" .. charData.level .. ") - " .. charData.lastSeen
             
             -- Add raid status if available
             if charData.raidStatus then
@@ -1058,6 +1072,7 @@ local function SlashCommandHandler(msg)
             end
             
             DEFAULT_CHAT_FRAME:AddMessage(charInfo)
+            end
         end
         if count == 0 then
             DEFAULT_CHAT_FRAME:AddMessage("  No characters saved yet. Log in with different characters to build the list.")
@@ -1117,20 +1132,3 @@ SLASH_RELOADUI4 = "/rui"
 SlashCmdList["RELOADUI"] = function()
     ReloadUI()
 end
-
--- Try to register /rl again after a delay to override any conflicts
-local reloadFrame = CreateFrame("Frame")
-reloadFrame:RegisterEvent("ADDON_LOADED")
-reloadFrame:SetScript("OnEvent", function(self, event, addonName)
-    if addonName == "GuusLegacyManager" then
-        -- Re-register reload commands after our addon loads
-        SLASH_RELOADUI1 = "/rl"
-        SLASH_RELOADUI2 = "/reload"
-        SLASH_RELOADUI3 = "/reloadui" 
-        SLASH_RELOADUI4 = "/rui"
-        SlashCmdList["RELOADUI"] = function()
-            ReloadUI()
-        end
-        self:UnregisterEvent("ADDON_LOADED")
-    end
-end)
