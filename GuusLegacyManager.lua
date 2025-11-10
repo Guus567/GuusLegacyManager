@@ -1,4 +1,24 @@
--- Initialize addon tables (saved variables will be properly loaded later)
+-- Compatibility shim for vanilla WoW: C_Timer.After
+if not C_Timer then
+    C_Timer = {}
+end
+if not C_Timer.After then
+    local frame = CreateFrame("Frame")
+    local timers = {}
+    frame:SetScript("OnUpdate", function(self, elapsed)
+        for i = table.getn(timers), 1, -1 do
+            local t = timers[i]
+            t.delay = t.delay - elapsed
+            if t.delay <= 0 then
+                t.func()
+                table.remove(timers, i)
+            end
+        end
+    end)
+    function C_Timer.After(delay, func)
+        table.insert(timers, {delay=delay, func=func})
+    end
+end
 GuusLegacyManager = GuusLegacyManager or {}
 GuusLegacyManager_Config = GuusLegacyManager_Config or {}
 -- Don't initialize minimap config here - will be done after VARIABLES_LOADED
