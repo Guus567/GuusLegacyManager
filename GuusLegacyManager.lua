@@ -277,12 +277,13 @@ local RefreshCharacterButtons
 local function GetRaidLockouts()
     local raidStatus = {}
     local raids = {
-        {name = "ZG", match = "Zul'Gurub", maxPlayers = 20},
-        {name = "MC", match = "Molten Core", maxPlayers = 40},
-        {name = "BWL", match = "Blackwing Lair", maxPlayers = 40},
-        {name = "AQ20", match = "Ruins of Ahn'Qiraj", maxPlayers = 20},
-        {name = "AQ40", match = "Temple of Ahn'Qiraj", maxPlayers = 40},
-        {name = "Naxx", match = "Naxxramas", maxPlayers = 40}
+    {name = "ZG", match = "Zul'Gurub", maxPlayers = 20},
+    {name = "MC", match = "Molten Core", maxPlayers = 40},
+    {name = "BWL", match = "Blackwing Lair", maxPlayers = 40},
+    {name = "AQ20", match = "Ruins of Ahn'Qiraj", maxPlayers = 20},
+    {name = "AQ40", match = "Ahn'Qiraj", maxPlayers = 40},
+    {name = "Naxx", match = "Naxxramas", maxPlayers = 40},
+    {name = "Ony", match = "Onyxia's Lair", maxPlayers = 40}
     }
 
     -- Initialize all raids as available first
@@ -826,7 +827,7 @@ local function CreateCharacterButtons()
         -- Only show raid tracking if not hidden
         if not config.HideRaidTracking then
             -- Create manual raid status buttons
-            local raids = {"ZG", "MC", "BWL", "AQ20", "AQ40", "Naxx"}
+            local raids = {"ZG", "MC", "BWL", "AQ20", "AQ40", "Naxx", "Ony"}
             for j = 1, table.getn(raids) do
                 local raidName = raids[j]
                 local isLocked = false
@@ -1077,7 +1078,7 @@ local function SlashCommandHandler(msg)
             
             -- Add raid status if available
             if charData.raidStatus then
-                local raids = {"ZG", "MC", "BWL", "AQ20", "AQ40", "Naxx"}
+                local raids = {"ZG", "MC", "BWL", "AQ20", "AQ40", "Naxx", "Ony"}
                 local raidStatusText = " - Raids: "
                 for j = 1, table.getn(raids) do
                     local raidName = raids[j]
