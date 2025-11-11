@@ -281,7 +281,7 @@ local function GetRaidLockouts()
     {name = "MC", match = "Molten Core", maxPlayers = 40},
     {name = "BWL", match = "Blackwing Lair", maxPlayers = 40},
     {name = "AQ20", match = "Ruins of Ahn'Qiraj", maxPlayers = 20},
-    {name = "AQ40", match = "Ahn'Qiraj", maxPlayers = 40},
+    {name = "AQ40", match = "Ahn'Qiraj Temple", maxPlayers = 40},
     {name = "Naxx", match = "Naxxramas", maxPlayers = 40},
     {name = "Ony", match = "Onyxia's Lair", maxPlayers = 40}
     }
