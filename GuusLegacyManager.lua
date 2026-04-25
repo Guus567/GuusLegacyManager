@@ -530,6 +530,22 @@ local function ExecuteLegacyCommand(characterName, role, spec)
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Executed: " .. command)
 end
 
+-- Function to get class colors (WoW standard colors)
+local function GetClassColor(class)
+    local classColors = {
+        ["Druid"] = {1.0, 0.49, 0.04},      -- FF7D0A
+        ["Hunter"] = {0.0, 0.44, 0.87},     -- 0070DD
+        ["Mage"] = {0.41, 0.8, 0.94},       -- 69CCF0
+        ["Paladin"] = {0.96, 0.55, 0.73},   -- F58CBA
+        ["Priest"] = {1.0, 1.0, 1.0},       -- FFFFFF
+        ["Rogue"] = {1.0, 0.96, 0.41},      -- FFF569
+        ["Shaman"] = {0.0, 0.44, 0.87},     -- 0070DD
+        ["Warlock"] = {0.58, 0.51, 0.79},   -- 9482CA
+        ["Warrior"] = {0.78, 0.61, 0.43}    -- C79C6E
+    }
+    return classColors[class] or {1.0, 1.0, 1.0}
+end
+
 -- Function to get available roles for a class
 local function GetAvailableRoles(class)
     local classRoles = {
@@ -661,15 +677,19 @@ local function CreateCharacterButtons()
         nameFrame:SetHeight(config.ButtonHeight)
         nameFrame:SetPoint("TOPLEFT", gui, "TOPLEFT", 10, yOffset)
         
-        -- Name label background
+        -- Name label background with class color
         nameFrame:SetBackdrop({
             bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
             edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
             tile = true, tileSize = 16, edgeSize = 16,
             insets = { left = 4, right = 4, top = 4, bottom = 4 }
         })
-        nameFrame:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
-        nameFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
+        
+        -- Get class color and set as background
+        local classColor = GetClassColor(charInfo.data.class)
+        -- Darken the color significantly for background to make it more distinctive
+        nameFrame:SetBackdropColor(classColor[1] * 0.25, classColor[2] * 0.25, classColor[3] * 0.25, 0.95)
+        nameFrame:SetBackdropBorderColor(classColor[1] * 0.8, classColor[2] * 0.8, classColor[3] * 0.8, 1.0)
         
         -- Character info text
         local faction = charInfo.data.faction or "Unknown"
@@ -680,7 +700,7 @@ local function CreateCharacterButtons()
         local textElement = nameFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         textElement:SetPoint("LEFT", nameFrame, "LEFT", 8, 0)
         textElement:SetText(nameText)
-        textElement:SetTextColor(1, 1, 1)
+        textElement:SetTextColor(classColor[1], classColor[2], classColor[3])
         textElement:SetJustifyH("LEFT")
 
         table.insert(characterButtons, nameFrame)
