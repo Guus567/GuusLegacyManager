@@ -632,14 +632,21 @@ local function CreateCharacterButtons()
         end
     end
 
-    -- Sort by character name
+    -- Sort by level (60 first) then by name
     table.sort(sortedChars, function(a, b)
+        local aLevel = a.data.level or 0
+        local bLevel = b.data.level or 0
+        -- If levels are different, higher level comes first (60 at top)
+        if aLevel ~= bLevel then
+            return aLevel > bLevel
+        end
+        -- If same level, sort alphabetically
         return a.data.name < b.data.name
     end)
     if config.Debug then
         DEFAULT_CHAT_FRAME:AddMessage("GLM DEBUG: sortedChars count: " .. tostring(table.getn(sortedChars)))
         for i, charInfo in ipairs(sortedChars) do
-            DEFAULT_CHAT_FRAME:AddMessage("  sorted: " .. tostring(charInfo.fullName) .. " -> " .. tostring(charInfo.data.name or "nil"))
+            DEFAULT_CHAT_FRAME:AddMessage("  sorted: " .. tostring(charInfo.fullName) .. " -> " .. tostring(charInfo.data.name or "nil") .. " (Lv" .. tostring(charInfo.data.level) .. ")")
         end
     end
     
