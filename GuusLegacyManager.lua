@@ -534,7 +534,7 @@ end
 local function GetClassColor(class)
     local classColors = {
         ["Druid"] = {1.0, 0.49, 0.04},      -- FF7D0A
-        ["Hunter"] = {0.0, 0.44, 0.87},     -- 0070DD
+        ["Hunter"] = {0.0, 1.0, 0.0},       -- 00FF00 (Green)
         ["Mage"] = {0.41, 0.8, 0.94},       -- 69CCF0
         ["Paladin"] = {0.96, 0.55, 0.73},   -- F58CBA
         ["Priest"] = {1.0, 1.0, 1.0},       -- FFFFFF
