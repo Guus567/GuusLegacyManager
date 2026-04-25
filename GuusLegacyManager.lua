@@ -659,9 +659,20 @@ local function CreateCharacterButtons()
     }
     
     -- Create character rows with role buttons
+    local totalExtraSpacing = 0
     for i = 1, table.getn(sortedChars) do
         local charInfo = sortedChars[i]
-        local yOffset = -70 - (i - 1) * (config.ButtonHeight + 5)
+        
+        -- Add extra spacing when transitioning from level 60 to lower levels
+        if i > 1 then
+            local prevLevel = sortedChars[i - 1].data.level or 0
+            local currLevel = charInfo.data.level or 0
+            if prevLevel == 60 and currLevel < 60 then
+                totalExtraSpacing = totalExtraSpacing + 15  -- Extra spacing after level 60 group
+            end
+        end
+        
+        local yOffset = -70 - (i - 1) * (config.ButtonHeight + 5) - totalExtraSpacing
         
         -- Get available roles for this character's class
         local availableRoles = GetAvailableRoles(charInfo.data.class)
