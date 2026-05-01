@@ -26,7 +26,7 @@ GuusLegacyManager_Config = GuusLegacyManager_Config or {}
 -- Configuration
 local config = {
     Debug = false,
-    WindowWidth = 800,
+    WindowWidth = 950,
     WindowHeight = 450,
     ButtonHeight = 30,
     ButtonWidth = 100,
@@ -596,6 +596,33 @@ local function ToggleRaidStatus(fullName, raidName)
     end
 end
 
+-- Function to delete a character with confirmation
+local function DeleteCharacter(fullName, characterName)
+    -- Show confirmation dialog
+    StaticPopupDialogs["GLM_CONFIRM_DELETE"] = {
+        text = "Are you sure you want to delete |cff00ff00" .. characterName .. "|r from the character list?",
+        button1 = "Delete",
+        button2 = "Cancel",
+        OnAccept = function()
+            -- Remove the character from the saved data
+            if GuusLegacyManager and GuusLegacyManager[fullName] then
+                GuusLegacyManager[fullName] = nil
+                DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00GuusLegacyManager:|r Character |cffff0000" .. characterName .. "|r has been deleted!")
+                
+                -- Refresh the GUI if it's open
+                if RefreshCharacterButtons then
+                    RefreshCharacterButtons()
+                end
+            end
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+    StaticPopup_Show("GLM_CONFIRM_DELETE")
+end
+
 -- Function to create character buttons
 local function CreateCharacterButtons()
     if config.Debug then DEFAULT_CHAT_FRAME:AddMessage("[GLM DEBUG] CreateCharacterButtons called!") end
@@ -937,6 +964,58 @@ local function CreateCharacterButtons()
                 table.insert(characterButtons, raidButton)
             end
         end
+        
+        -- Create delete button for this character - position depends on raid tracking visibility
+        local deleteButtonX
+        if config.HideRaidTracking then
+            -- Position after role buttons when raid tracking is hidden
+            deleteButtonX = raidStatusStartX + 10
+        else
+            -- Position after all raid buttons when raid tracking is shown
+            deleteButtonX = raidStatusStartX + (7 * (config.RaidButtonWidth + 2)) + 10
+        end
+        local deleteBtn = CreateFrame("Button", "GuusLegacyDeleteBtn" .. i, gui)
+        deleteBtn:SetWidth(60)
+        deleteBtn:SetHeight(config.ButtonHeight)
+        deleteBtn:SetPoint("TOPLEFT", gui, "TOPLEFT", deleteButtonX, yOffset)
+        
+        -- Delete button background
+        deleteBtn:SetBackdrop({
+            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        })
+        deleteBtn:SetBackdropColor(0.5, 0.2, 0.2, 0.8)  -- Dark red
+        deleteBtn:SetBackdropBorderColor(0.8, 0.3, 0.3, 0.8)
+        
+        -- Delete button hover effect
+        deleteBtn:SetScript("OnEnter", function()
+            deleteBtn:SetBackdropColor(0.8, 0.3, 0.3, 0.9)  -- Brighter red on hover
+            GameTooltip:SetOwner(deleteBtn, "ANCHOR_TOP")
+            GameTooltip:SetText("Delete Character", 1, 0, 0)
+            GameTooltip:AddLine("Removes " .. charInfo.data.name .. " from the list", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end)
+        deleteBtn:SetScript("OnLeave", function()
+            deleteBtn:SetBackdropColor(0.5, 0.2, 0.2, 0.8)
+            GameTooltip:Hide()
+        end)
+        
+        -- Delete button text
+        local deleteText = deleteBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        deleteText:SetPoint("CENTER", deleteBtn, "CENTER", 0, 0)
+        deleteText:SetText("Delete")
+        deleteText:SetTextColor(1, 0.5, 0.5)
+        deleteText:SetJustifyH("CENTER")
+        deleteText:SetJustifyV("MIDDLE")
+        
+        -- Delete button click handler
+        deleteBtn:SetScript("OnClick", function()
+            DeleteCharacter(charInfo.fullName, charInfo.data.name)
+        end)
+        
+        table.insert(characterButtons, deleteBtn)
     end
 end
 
